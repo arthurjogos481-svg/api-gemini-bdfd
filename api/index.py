@@ -3,9 +3,8 @@ from urllib.parse import urlparse, parse_qs
 import google.generativeai as genai
 import os
 
-# Configuração da API
+# Configura a chave
 api_key = os.environ.get("GEMINI_API_KEY")
-genai.configure(api_key=api_key)
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -17,31 +16,24 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
         if not api_key:
-            self.wfile.write("Erro: GEMINI_API_KEY não configurada na Vercel.".encode('utf-8'))
-            return
-
-        if not prompt:
-            self.wfile.write("Erro: Envie um prompt na URL.".encode('utf-8'))
+            self.wfile.write("Erro: Chave não configurada.".encode('utf-8'))
             return
 
         try:
-            # Trocamos para o gemini-pro (mais estável) e garantimos o nome correto
-            # O modelo 'gemini-pro' tem compatibilidade universal
-            model = genai.GenerativeModel('gemini-pro')
+            # Forçamos a configuração da API estável
+            genai.configure(api_key=api_key)
+            
+            # Usamos o modelo Flash que é o mais rápido
+            model = genai.GenerativeModel('gemini-1.5-flash')
             
             response = model.generate_content(prompt)
             
             if response.text:
                 self.wfile.write(response.text.encode('utf-8'))
             else:
-                self.wfile.write("Erro: Resposta vazia da IA.".encode('utf-8'))
+                self.wfile.write("Erro: Resposta vazia.".encode('utf-8'))
 
         except Exception as e:
-            # Se o gemini-pro falhar, tentamos o 1.0-pro como última alternativa
-            try:
-                model_alt = genai.GenerativeModel('gemini-1.0-pro')
-                response = model_alt.generate_content(prompt)
-                self.wfile.write(response.text.encode('utf-8'))
-            except:
-                self.wfile.write(f"Erro crítico: {str(e)}".encode('utf-8'))
-                
+            # Se der erro, ele vai imprimir o erro detalhado
+            self.wfile.write(f"Erro na conexao: {str(e)}".encode('utf-8'))
+            
