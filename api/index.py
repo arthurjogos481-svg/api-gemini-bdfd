@@ -3,47 +3,45 @@ from urllib.parse import urlparse, parse_qs
 import google.generativeai as genai
 import os
 
-# Configuração da API Key
-# Certifique-se de que o nome na Vercel seja exatamente GEMINI_API_KEY
+# Configuração da API
 api_key = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=api_key)
 
-# Usando o caminho completo do modelo para evitar o erro 404
-model = genai.GenerativeModel('models/gemini-1.5-flash')
-
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # Extrai os parâmetros da URL
         query = parse_qs(urlparse(self.path).query)
         prompt = query.get('prompt', [None])[0]
 
-        # Configura o cabeçalho de resposta
         self.send_response(200)
         self.send_header('Content-type', 'text/plain; charset=utf-8')
         self.end_headers()
 
-        # Verifica se o prompt foi enviado
-        if not prompt:
-            self.wfile.write("Erro: Você não enviou uma pergunta. Use ?prompt=sua+pergunta".encode('utf-8'))
+        if not api_key:
+            self.wfile.write("Erro: GEMINI_API_KEY não configurada na Vercel.".encode('utf-8'))
             return
 
-        # Verifica se a chave da API está configurada
-        if not api_key:
-            self.wfile.write("Erro: A GEMINI_API_KEY não foi configurada na Vercel.".encode('utf-8'))
+        if not prompt:
+            self.wfile.write("Erro: Envie um prompt na URL.".encode('utf-8'))
             return
 
         try:
-            # Tenta gerar o conteúdo com o Gemini
+            # Trocamos para o gemini-pro (mais estável) e garantimos o nome correto
+            # O modelo 'gemini-pro' tem compatibilidade universal
+            model = genai.GenerativeModel('gemini-pro')
+            
             response = model.generate_content(prompt)
             
-            # Se a resposta for bem-sucedida, envia o texto
-            if response and response.text:
+            if response.text:
                 self.wfile.write(response.text.encode('utf-8'))
             else:
-                self.wfile.write("Erro: A IA retornou uma resposta vazia.".encode('utf-8'))
+                self.wfile.write("Erro: Resposta vazia da IA.".encode('utf-8'))
 
         except Exception as e:
-            # Caso ocorra erro de cota, modelo ou chave, ele mostra aqui
-            erro_msg = f"Erro na API Gemini: {str(e)}"
-            self.wfile.write(erro_msg.encode('utf-8'))
-            
+            # Se o gemini-pro falhar, tentamos o 1.0-pro como última alternativa
+            try:
+                model_alt = genai.GenerativeModel('gemini-1.0-pro')
+                response = model_alt.generate_content(prompt)
+                self.wfile.write(response.text.encode('utf-8'))
+            except:
+                self.wfile.write(f"Erro crítico: {str(e)}".encode('utf-8'))
+                
